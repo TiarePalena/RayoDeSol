@@ -84,50 +84,209 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// Contact Form Handling
+// ===================================
+// FORM VALIDATION & HANDLING
+// ===================================
 const contactForm = document.getElementById('contactForm');
+const telefonoInput = document.getElementById('telefono');
 
+// --- Formateo automático teléfono chileno ---
+telefonoInput.addEventListener('input', (e) => {
+    let value = e.target.value.replace(/[^\d+]/g, '');
+    
+    // Si no empieza con +56, agregar
+    if (value.length > 0 && !value.startsWith('+')) {
+        // Si escribió 56... o 9...
+        if (value.startsWith('56')) {
+            value = '+' + value;
+        } else if (value.startsWith('9') && value.length <= 9) {
+            value = '+56' + value;
+        } else if (!value.startsWith('0')) {
+            value = '+56' + value;
+        }
+    }
+    
+    // Formatear como +56 9 XXXX XXXX
+    let formatted = '';
+    const digits = value.replace(/\D/g, '');
+    
+    if (digits.length === 0) {
+        formatted = '';
+    } else if (digits.length <= 2) {
+        formatted = '+' + digits;
+    } else if (digits.length <= 3) {
+        formatted = '+' + digits.slice(0, 2) + ' ' + digits.slice(2);
+    } else if (digits.length <= 7) {
+        formatted = '+' + digits.slice(0, 2) + ' ' + digits.slice(2, 3) + ' ' + digits.slice(3);
+    } else {
+        formatted = '+' + digits.slice(0, 2) + ' ' + digits.slice(2, 3) + ' ' + digits.slice(3, 7) + ' ' + digits.slice(7, 11);
+    }
+    
+    e.target.value = formatted;
+    validateField(e.target);
+});
+
+// --- Validaciones individuales ---
+function showError(fieldId, message) {
+    const errorSpan = document.getElementById(fieldId + '-error');
+    const input = document.getElementById(fieldId);
+    if (errorSpan) {
+        errorSpan.textContent = message;
+        errorSpan.classList.add('visible');
+    }
+    if (input) {
+        input.classList.add('invalid');
+        input.classList.remove('valid');
+    }
+}
+
+function clearError(fieldId) {
+    const errorSpan = document.getElementById(fieldId + '-error');
+    const input = document.getElementById(fieldId);
+    if (errorSpan) {
+        errorSpan.textContent = '';
+        errorSpan.classList.remove('visible');
+    }
+    if (input) {
+        input.classList.remove('invalid');
+        input.classList.add('valid');
+    }
+}
+
+function validateField(field) {
+    const id = field.id;
+    const value = field.value.trim();
+    
+    switch(id) {
+        case 'nombre':
+            if (value.length === 0) {
+                showError(id, 'El nombre es obligatorio');
+                return false;
+            }
+            if (value.length < 3) {
+                showError(id, 'Ingresa al menos 3 caracteres');
+                return false;
+            }
+            if (!/^[a-zA-ZáéíóúñÁÉÍÓÚÑüÜ\s]+$/.test(value)) {
+                showError(id, 'Solo se permiten letras y espacios');
+                return false;
+            }
+            clearError(id);
+            return true;
+            
+        case 'email':
+            if (value.length === 0) {
+                showError(id, 'El email es obligatorio');
+                return false;
+            }
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+                showError(id, 'Ingresa un email válido (ej: correo@ejemplo.cl)');
+                return false;
+            }
+            clearError(id);
+            return true;
+            
+        case 'telefono':
+            const digits = value.replace(/\D/g, '');
+            if (value.length === 0) {
+                showError(id, 'El teléfono es obligatorio');
+                return false;
+            }
+            if (!/^\+56\s?9\s?\d{4}\s?\d{4}$/.test(value)) {
+                showError(id, 'Ingresa un celular chileno válido (+56 9 XXXX XXXX)');
+                return false;
+            }
+            clearError(id);
+            return true;
+            
+        case 'mensaje':
+            if (value.length === 0) {
+                showError(id, 'El mensaje es obligatorio');
+                return false;
+            }
+            if (value.length < 10) {
+                showError(id, 'Escribe al menos 10 caracteres');
+                return false;
+            }
+            clearError(id);
+            return true;
+    }
+    return true;
+}
+
+// --- Validación en tiempo real al salir del campo ---
+['nombre', 'email', 'telefono', 'mensaje'].forEach(id => {
+    const field = document.getElementById(id);
+    if (field) {
+        field.addEventListener('blur', () => validateField(field));
+        // Limpiar error mientras escribe (si ya era válido)
+        field.addEventListener('input', () => {
+            if (field.classList.contains('invalid')) {
+                validateField(field);
+            }
+        });
+    }
+});
+
+// --- Envío del formulario ---
 contactForm.addEventListener('submit', (e) => {
     e.preventDefault();
     
-    // Get form data
-    const formData = {
-        nombre: document.getElementById('nombre').value,
-        email: document.getElementById('email').value,
-        telefono: document.getElementById('telefono').value,
-        mensaje: document.getElementById('mensaje').value
-    };
+    // Validar todos los campos
+    const fields = ['nombre', 'email', 'telefono', 'mensaje'];
+    let isValid = true;
     
-    // Here you would typically send the data to a server
-    // For now, we'll just log it and show a success message
-    console.log('Form submitted:', formData);
+    fields.forEach(id => {
+        const field = document.getElementById(id);
+        if (!validateField(field)) {
+            isValid = false;
+        }
+    });
     
-    // Show success message
-    alert('¡Gracias por tu mensaje! Nos pondremos en contacto contigo pronto.');
+    if (!isValid) {
+        // Hacer scroll al primer error
+        const firstError = contactForm.querySelector('.invalid');
+        if (firstError) {
+            firstError.focus();
+        }
+        return;
+    }
     
-    // Reset form
-    contactForm.reset();
+    const submitBtn = contactForm.querySelector('button[type="submit"]');
+    const originalText = submitBtn.textContent;
+    submitBtn.textContent = 'Enviando...';
+    submitBtn.disabled = true;
     
-    // In a real implementation, you would send this data to your backend
-    // Example with fetch:
-    /*
-    fetch('/api/contact', {
+    const formData = new FormData(contactForm);
+    
+    fetch(contactForm.action, {
         method: 'POST',
+        body: formData,
         headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData)
+            'Accept': 'application/json'
+        }
     })
-    .then(response => response.json())
-    .then(data => {
-        alert('¡Gracias por tu mensaje! Nos pondremos en contacto contigo pronto.');
-        contactForm.reset();
+    .then(response => {
+        if (response.ok) {
+            alert('¡Gracias por tu mensaje! Nos pondremos en contacto contigo pronto.');
+            contactForm.reset();
+            // Limpiar estados visuales
+            fields.forEach(id => {
+                const input = document.getElementById(id);
+                input.classList.remove('valid', 'invalid');
+            });
+        } else {
+            throw new Error('Error en el envío');
+        }
     })
     .catch(error => {
         console.error('Error:', error);
         alert('Hubo un error al enviar el mensaje. Por favor, intenta nuevamente.');
+    })
+    .finally(() => {
+        submitBtn.textContent = originalText;
+        submitBtn.disabled = false;
     });
-    */
 });
 
 // Parallax Effect for Hero Section
